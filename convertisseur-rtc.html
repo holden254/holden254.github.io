@@ -198,8 +198,7 @@
 
       var headers = [
         'N° Com.', 'ND', 'S. Produit', 'Etat', 'Op', 'Secteur', 'ZR',
-        'Login', 'Agence', 'Motif', 'Type Motif', 'com. motif', 'Délai(j)',
-        'Intitulé client', 'Contact client', 'Adresse', 'Nom technicien'
+        'Motif', 'com. motif', 'Délai(j)', 'Contact client', 'Adresse'
       ];
 
       var sourceText = document.getElementById('sourceText');
@@ -347,9 +346,7 @@
         if (complement && address && normalizeLabel(address).indexOf(normalizeLabel(complement)) < 0) address = address + ', ' + complement;
         else if (complement && !address) address = complement;
         var zone = field(fields, ['Zone réseau', 'Zone reseau', 'ZR']);
-        var title = field(fields, ['Intitulé client', 'Intitule client', 'Client']);
         var motif = field(fields, ["Commentaire d'installation", 'Commentaire installation', 'Motif']);
-        var typeMotif = field(fields, ['Type Motif']);
         var commentMotif = field(fields, ['com. motif', 'Commentaire motif']);
         var delay = field(fields, ['Délai(j)', 'Delai(j)', 'Délai', 'Delai']);
         var product = field(fields, ['S. Produit', 'S Produit', 'Produit']) || 'RTC';
@@ -358,13 +355,10 @@
         var dateRegistered = field(fields, ['Date enregistrement', 'Date d enregistrement']);
         if (dateRegistered) stripContactFromDate(dateRegistered);
 
-        var login = field(fields, ['Login']) || nd;
-        var agence = field(fields, ['Agence']);
-        var techName = field(fields, ['Nom technicien', 'Technicien']);
         return [
-          command, nd, product, state, operation, sector, zone, login, agence,
-          motif, typeMotif, commentMotif, delay, title,
-          extractContact(fields, block), address, techName
+          command, nd, product, state, operation, sector, zone,
+          motif, commentMotif, delay,
+          extractContact(fields, block), address
         ].map(clean);
       }
 
