@@ -145,7 +145,7 @@
     <div class="steps" aria-hidden="true">
       <div class="st"><span class="n">1</span><span>Collez le message<small>Le message complet de l'email</small></span></div>
       <div class="st"><span class="n">2</span><span>Vérifiez le tableau<small>Les cases orange sont vides</small></span></div>
-      <div class="st"><span class="n">3</span><span>Copiez dans Excel<small>Bouton copier, puis Ctrl+V</small></span></div>
+      <div class="st"><span class="n">3</span><span>Copiez dans Excel<small>Sans l'en-tête — collez sous vos titres</small></span></div>
     </div>
 
     <section class="panel">
@@ -419,7 +419,7 @@
       }
 
       function buildTSV() {
-        return [headers].concat(currentRows).map(function (row) {
+        return currentRows.map(function (row) {
           return row.map(function (cell) {
             return String(cell || '').replace(/[\t\r\n]+/g, ' ');
           }).join('\t');
