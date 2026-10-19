@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="light dark" />
+  <link rel="icon" href="data:," />
+  <title>Convertisseur RTC Web — Message → Tableau Excel</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #eef4f1;
+      --surface: #ffffff;
+      --surface-2: #f3f8f5;
+      --ink: #14261f;
+      --muted: #5b6f66;
+      --line: #cfded6;
+      --green: #0e9f6e;
+      --green-deep: #0b7a55;
+      --green-soft: #dcf5e9;
+      --orange: #b45309;
+      --orange-soft: #fdf0dd;
+      --cell-missing: #fdeeda;
+      --shadow: 0 14px 40px rgba(16, 60, 42, .10);
+      --radius: 16px;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0e1713;
+        --surface: #16211b;
+        --surface-2: #1b2a21;
+        --ink: #ecf5f0;
+        --muted: #a9beb3;
+        --line: #2c4237;
+        --green: #34d399;
+        --green-deep: #6ee7b7;
+        --green-soft: #123528;
+        --orange: #f2b26b;
+        --orange-soft: #3d2c14;
+        --cell-missing: #4a3517;
+        --shadow: 0 14px 40px rgba(0, 0, 0, .3);
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink);
+      font-family: "Segoe UI", system-ui, -apple-system, Arial, sans-serif; line-height: 1.5;
+    }
+    .page { width: min(1200px, 100%); margin: 0 auto; padding: clamp(16px, 3vw, 36px); }
+
+    h1 { font-size: clamp(24px, 3.4vw, 38px); margin: 0 0 6px; line-height: 1.15; }
+    .subtitle { color: var(--muted); font-size: 17px; margin: 0 0 20px; max-width: 720px; }
+
+    /* Le chemin en 3 étapes */
+    .steps { display: flex; gap: 10px; flex-wrap: wrap; margin: 0 0 20px; }
+    .steps .st {
+      flex: 1 1 200px; display: flex; align-items: center; gap: 12px;
+      background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+      padding: 12px 14px; font-weight: 600; font-size: 16px;
+    }
+    .steps .n {
+      flex: 0 0 auto; width: 38px; height: 38px; border-radius: 50%;
+      background: var(--green); color: #fff; display: grid; place-items: center;
+      font-size: 20px; font-weight: 800;
+    }
+    .steps .st small { display: block; font-weight: 400; color: var(--muted); font-size: 13px; }
+
+    .panel {
+      background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+      box-shadow: var(--shadow); overflow: hidden; margin-bottom: 18px;
+    }
+    .panel-head {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 14px 18px; border-bottom: 1px solid var(--line); background: var(--surface-2);
+    }
+    .panel-head h2 { margin: 0; font-size: 19px; display: flex; align-items: center; gap: 10px; }
+    .panel-head h2 .n {
+      width: 30px; height: 30px; border-radius: 50%; background: var(--green); color: #fff;
+      display: grid; place-items: center; font-size: 16px; font-weight: 800;
+    }
+    .panel-body { padding: 16px 18px; }
+
+    .hint { color: var(--muted); margin: 0 0 10px; font-size: 15px; }
+    textarea {
+      width: 100%; min-height: 190px; resize: vertical; padding: 12px 14px;
+      border: 2px solid var(--line); border-radius: 12px; background: var(--surface);
+      color: var(--ink); font: inherit; font-size: 14.5px;
+    }
+    textarea:focus { outline: none; border-color: var(--green); }
+    textarea::placeholder { color: var(--muted); opacity: .8; }
+
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; align-items: center; }
+    .btn {
+      border: 0; border-radius: 12px; padding: 13px 22px; font: inherit; font-weight: 700;
+      font-size: 16.5px; cursor: pointer; transition: transform .05s ease, filter .15s ease;
+    }
+    .btn:active { transform: scale(.98); }
+    .btn-primary { background: var(--green); color: #fff; }
+    .btn-primary:hover { filter: brightness(1.07); }
+    .btn-ghost { background: transparent; color: var(--ink); border: 2px solid var(--line); }
+    .btn-ghost:hover { border-color: var(--green); }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+    .char-count { color: var(--muted); font-size: 13.5px; margin-left: auto; }
+
+    .success {
+      display: none; border-radius: 12px; padding: 13px 16px; margin-bottom: 14px;
+      background: var(--green-soft); color: var(--green-deep); font-weight: 700; font-size: 16.5px;
+    }
+    .success.visible { display: block; }
+
+    .warnings {
+      display: none; border-radius: 12px; padding: 12px 16px; margin-top: 14px;
+      background: var(--orange-soft); color: var(--orange); font-weight: 600; font-size: 15px;
+    }
+    .warnings.visible { display: block; }
+
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+    table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+    th, td { border: 1px solid var(--line); padding: 7px 9px; text-align: left; vertical-align: top; }
+    th { background: var(--green); color: #fff; font-size: 12.5px; white-space: nowrap; }
+    td.missing { background: var(--cell-missing); }
+    td.missing::after { content: "— vide —"; color: var(--orange); font-size: 12px; }
+
+    .empty { text-align: center; color: var(--muted); padding: 34px 16px; }
+    .empty strong { display: block; font-size: 17px; color: var(--ink); margin-bottom: 4px; }
+    .result { display: none; }
+    .result.visible { display: block; }
+    .big-copy { width: 100%; margin-top: 14px; padding: 16px; font-size: 18px; }
+
+    .toast {
+      position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%) translateY(20px);
+      background: var(--ink); color: var(--bg); padding: 12px 22px; border-radius: 99px;
+      font-weight: 700; opacity: 0; pointer-events: none; transition: all .25s ease; z-index: 50;
+      max-width: 92vw; text-align: center;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <h1>📋 Convertisseur RTC</h1>
+    <p class="subtitle">Vous collez le message reçu par email — l'outil remplit le tableau RTC tout seul, prêt à coller dans Excel ou dans l'import de l'application.</p>
+
+    <div class="steps" aria-hidden="true">
+      <div class="st"><span class="n">1</span><span>Collez le message<small>Le message complet de l'email</small></span></div>
+      <div class="st"><span class="n">2</span><span>Vérifiez le tableau<small>Les cases orange sont vides</small></span></div>
+      <div class="st"><span class="n">3</span><span>Copiez dans Excel<small>Bouton copier, puis Ctrl+V</small></span></div>
+    </div>
+
+    <section class="panel">
+      <header class="panel-head">
+        <h2><span class="n">1</span>Le message reçu</h2>
+        <button class="btn btn-ghost" id="exampleBtn" type="button">👀 Voir un exemple</button>
+      </header>
+      <div class="panel-body">
+        <p class="hint">Collez ici le message complet (un seul abonné ou plusieurs à la fois). La conversion se lance toute seule dès que vous collez.</p>
+        <label for="sourceText" class="sr-only">Texte à convertir</label>
+        <textarea id="sourceText" spellcheck="false" placeholder="Bonjour,&#10;&#10;Opération : RM&#10;Numéro de commande : 101635258&#10;ND/Login : 0537409027&#10;Date enregistrement : 02/10/2026 10:46:22 CONTACT 0613313178&#10;Intitulé client : ...&#10;Adresse d'installation : ..."></textarea>
+        <div class="actions">
+          <button class="btn btn-primary" id="convertBtn" type="button">➡ Convertir en tableau</button>
+          <button class="btn btn-ghost" id="clearBtn" type="button">Effacer</button>
+          <span class="char-count" id="charCount">0 caractère</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <header class="panel-head">
+        <h2><span class="n">2</span>Le tableau RTC</h2>
+        <button class="btn btn-primary" id="copyBtn" type="button" disabled>📋 Copier pour Excel</button>
+      </header>
+      <div class="panel-body">
+        <div class="success" id="successBox"></div>
+        <div class="empty" id="emptyState">
+          <strong>Le tableau apparaîtra ici</strong>
+          <span>Collez d'abord votre message dans l'étape 1.</span>
+        </div>
+        <div class="result" id="result">
+          <div class="table-wrap">
+            <table aria-label="Résultat prêt pour Excel">
+              <thead><tr id="headerRow"></tr></thead>
+              <tbody id="tableBody"></tbody>
+            </table>
+          </div>
+          <button class="btn btn-primary big-copy" id="copyBtn2" type="button">📋 Copier le tableau — puis collez dans Excel (Ctrl+V)</button>
+          <div class="warnings" id="warnings" role="status"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite">Tableau copié</div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      var headers = [
+        'N° Com.', 'ND', 'S. Produit', 'Etat', 'Op', 'Secteur', 'ZR',
+        'Login', 'Agence', 'Motif', 'Type Motif', 'com. motif', 'Délai(j)',
+        'Intitulé client', 'Contact client', 'Adresse', 'Nom technicien'
+      ];
+
+      var sourceText = document.getElementById('sourceText');
+      var convertBtn = document.getElementById('convertBtn');
+      var clearBtn = document.getElementById('clearBtn');
+      var exampleBtn = document.getElementById('exampleBtn');
+      var copyBtn = document.getElementById('copyBtn');
+      var copyBtn2 = document.getElementById('copyBtn2');
+      var charCount = document.getElementById('charCount');
+      var emptyState = document.getElementById('emptyState');
+      var result = document.getElementById('result');
+      var tableBody = document.getElementById('tableBody');
+      var headerRow = document.getElementById('headerRow');
+      var successBox = document.getElementById('successBox');
+      var warnings = document.getElementById('warnings');
+      var toast = document.getElementById('toast');
+      var currentRows = [];
+      var toastTimer;
+
+      var EXAMPLE = [
+        'Bonjour,',
+        '',
+        'Opération : RM',
+        'Numéro de commande : 101635258',
+        'ND/Login : 0537409027',
+        'Date enregistrement : 02/10/2026 10:46:22 CONTACT 0613313178',
+        'Intitulé client : ALAMI MOHAMED',
+        "Adresse d'installation : RES AL MANAR IMM 12 APT 5, TEMARA",
+        'Zone réseau : TEMARA CENTRE'
+      ].join('\n');
+
+      headers.forEach(function (header) {
+        var th = document.createElement('th');
+        th.scope = 'col';
+        th.textContent = header;
+        headerRow.appendChild(th);
+      });
+
+      function clean(value) {
+        return (value || '')
+          .replace(/ /g, ' ')
+          .replace(/[ \t]+/g, ' ')
+          .replace(/^\s+|\s+$/g, '');
+      }
+
+      function normalizeLabel(value) {
+        return value.toLowerCase()
+          .normalize('NFD').replace(/[̀-ͯ]/g, '')
+          .replace(/[?’']/g, '')
+          .replace(/[^a-z0-9]+/g, ' ')
+          .trim();
+      }
+
+      /* Texte parfois abîmé : les accents deviennent « ? » (Op?ration,
+         Num?ro…). Chaque libellé est indexé sous plusieurs formes pour
+         retrouver les champs quand même. */
+      function keyVariants(value) {
+        var base = String(value || '');
+        var forms = [
+          normalizeLabel(base),
+          normalizeLabel(base.replace(/\?/g, 'e')),
+          normalizeLabel(base.replace(/\?/g, '')).replace(/ /g, '')
+        ];
+        var out = [];
+        forms.forEach(function (k) { if (k && out.indexOf(k) < 0) out.push(k); });
+        return out;
+      }
+
+      function parseFields(block) {
+        var fields = {};
+        var lines = block.split(/\r?\n/);
+        lines.forEach(function (line) {
+          var match = line.match(/^\s*([^:]+?)\s*:\s*(.*)$/);
+          if (!match) return;
+          var value = clean(match[2]);
+          keyVariants(match[1]).forEach(function (key) {
+            if (!Object.prototype.hasOwnProperty.call(fields, key)) fields[key] = value;
+          });
+        });
+        return fields;
+      }
+
+      function field(fields, names) {
+        for (var i = 0; i < names.length; i += 1) {
+          var variants = keyVariants(names[i]);
+          for (var j = 0; j < variants.length; j += 1) {
+            if (Object.prototype.hasOwnProperty.call(fields, variants[j])) return fields[variants[j]];
+          }
+        }
+        return '';
+      }
+
+      function splitRequests(text) {
+        var normalized = text.replace(/\r\n/g, '\n').trim();
+        if (!normalized) return [];
+        var starts = [];
+        var pattern = /^\s*(?:Num[eé?]ro\s+de\s+commande|N[°º]?\s*Com\.?|Commande)\s*:/gim;
+        var match;
+        while ((match = pattern.exec(normalized)) !== null) starts.push(match.index);
+        if (starts.length <= 1) return [normalized];
+        var blocks = [];
+        for (var i = 0; i < starts.length; i += 1) {
+          var from = i === 0 ? 0 : starts[i];
+          var to = i + 1 < starts.length ? starts[i + 1] : normalized.length;
+          var block = normalized.slice(from, to).trim();
+          if (block) blocks.push(block);
+        }
+        return blocks;
+      }
+
+      function extractContact(fields, block) {
+        var direct = field(fields, ['Contact client', 'Contact', 'Téléphone', 'Telephone', 'GSM']);
+        if (direct) {
+          var directPhone = direct.match(/(?:\+212|0)\s*[5-7](?:[ .-]?\d){8}/);
+          return clean(directPhone ? directPhone[0].replace(/[ .-]/g, '') : direct);
+        }
+        var dateLine = field(fields, ['Date enregistrement', 'Date d enregistrement']);
+        var source = dateLine + '\n' + block;
+        var labelled = source.match(/\bCONTACT\s*[:\-]?\s*((?:\+212|0)\s*[5-7](?:[ .-]?\d){8})/i);
+        if (labelled) return labelled[1].replace(/[ .-]/g, '');
+        var complement = field(fields, ["Complément d adresse", 'Complement d adresse']);
+        var fallback = complement.match(/(?:\+212|0)\s*[5-7](?:[ .-]?\d){8}/);
+        return fallback ? fallback[0].replace(/[ .-]/g, '') : '';
+      }
+
+      function detectSector(address, zone) {
+        var haystack = normalizeLabel(address + ' ' + zone);
+        if (/bouznika|bzn/.test(haystack)) return 'TEM125-BOUZNIKA';
+        if (/skhirat|skh/.test(haystack)) return 'TEM127-SKHIRAT';
+        if (/temara|harhoura|ain atiq|ain el aouda/.test(haystack)) return 'TEM128-TEMARA CENTRE';
+        return '';
+      }
+
+      function stripContactFromDate(value) {
+        return clean(value.replace(/\s+CONTACT\b.*$/i, ''));
+      }
+
+      function convertBlock(block) {
+        var fields = parseFields(block);
+        var command = field(fields, ['Numéro de commande', 'Numero de commande', 'N° Com.', 'Commande']);
+        var nd = field(fields, ['ND/Login', 'ND Login', 'ND']);
+        var operation = field(fields, ['Opération', 'Operation', 'Op']);
+        var address = field(fields, ["Adresse d'installation", 'Adresse installation', 'Adresse']);
+        var complement = field(fields, ["Complément d'adresse", 'Complement adresse', 'Complément']);
+        if (complement && address && normalizeLabel(address).indexOf(normalizeLabel(complement)) < 0) address = address + ', ' + complement;
+        else if (complement && !address) address = complement;
+        var zone = field(fields, ['Zone réseau', 'Zone reseau', 'ZR']);
+        var title = field(fields, ['Intitulé client', 'Intitule client', 'Client']);
+        var motif = field(fields, ["Commentaire d'installation", 'Commentaire installation', 'Motif']);
+        var typeMotif = field(fields, ['Type Motif']);
+        var commentMotif = field(fields, ['com. motif', 'Commentaire motif']);
+        var delay = field(fields, ['Délai(j)', 'Delai(j)', 'Délai', 'Delai']);
+        var product = field(fields, ['S. Produit', 'S Produit', 'Produit']) || 'RTC';
+        var state = field(fields, ['Etat', 'État']) || 'VA';
+        var sector = field(fields, ['Secteur']) || detectSector(address, zone);
+        var dateRegistered = field(fields, ['Date enregistrement', 'Date d enregistrement']);
+        if (dateRegistered) stripContactFromDate(dateRegistered);
+
+        var login = field(fields, ['Login']) || nd;
+        var agence = field(fields, ['Agence']);
+        var techName = field(fields, ['Nom technicien', 'Technicien']);
+        return [
+          command, nd, product, state, operation, sector, zone, login, agence,
+          motif, typeMotif, commentMotif, delay, title,
+          extractContact(fields, block), address, techName
+        ].map(clean);
+      }
+
+      function renderRows(rows) {
+        tableBody.innerHTML = '';
+        rows.forEach(function (row) {
+          var tr = document.createElement('tr');
+          row.forEach(function (value, index) {
+            var td = document.createElement('td');
+            td.setAttribute('data-label', headers[index]);
+            td.textContent = value;
+            if (!value) td.classList.add('missing');
+            tr.appendChild(td);
+          });
+          tableBody.appendChild(tr);
+        });
+      }
+
+      function convert() {
+        var text = sourceText.value.trim();
+        if (!text) {
+          showToast("Collez d'abord un message dans l'étape 1");
+          sourceText.focus();
+          return;
+        }
+        var blocks = splitRequests(text);
+        currentRows = blocks.map(convertBlock).filter(function (row) {
+          return row.some(function (cell) { return cell !== ''; });
+        });
+        if (!currentRows.length) {
+          showToast("Je n'ai rien reconnu — vérifiez le message collé");
+          return;
+        }
+        renderRows(currentRows);
+        emptyState.style.display = 'none';
+        result.classList.add('visible');
+        copyBtn.disabled = false;
+        successBox.textContent = '✅ ' + currentRows.length + (currentRows.length > 1 ? ' lignes prêtes' : ' ligne prête') + ' — cliquez « Copier » puis collez dans Excel (Ctrl+V).';
+        successBox.classList.add('visible');
+
+        var missing = [];
+        currentRows.forEach(function (row, index) {
+          var fields = [];
+          if (!row[0]) fields.push('le N° de commande');
+          if (!row[1]) fields.push('le ND');
+          if (!row[5]) fields.push('le Secteur');
+          if (fields.length) missing.push('Ligne ' + (index + 1) + ' : il manque ' + fields.join(' et '));
+        });
+        if (missing.length) {
+          warnings.innerHTML = '⚠️ À vérifier avant de copier :<br>' + missing.join('<br>') +
+            '<br>Ces cases resteront vides dans Excel — remplissez-les à la main si besoin.';
+          warnings.classList.add('visible');
+        } else {
+          warnings.textContent = '';
+          warnings.classList.remove('visible');
+        }
+        result.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+
+      function buildTSV() {
+        return [headers].concat(currentRows).map(function (row) {
+          return row.map(function (cell) {
+            return String(cell || '').replace(/[\t\r\n]+/g, ' ');
+          }).join('\t');
+        }).join('\n');
+      }
+
+      function copyText(text) {
+        if (navigator.clipboard && window.isSecureContext) {
+          return navigator.clipboard.writeText(text);
+        }
+        return new Promise(function (resolve, reject) {
+          var helper = document.createElement('textarea');
+          helper.value = text;
+          helper.setAttribute('readonly', '');
+          helper.style.position = 'fixed';
+          helper.style.opacity = '0';
+          document.body.appendChild(helper);
+          helper.select();
+          try {
+            document.execCommand('copy') ? resolve() : reject(new Error('copy failed'));
+          } catch (error) { reject(error); }
+          document.body.removeChild(helper);
+        });
+      }
+
+      function doCopy() {
+        if (!currentRows.length) return;
+        copyText(buildTSV()).then(function () {
+          showToast('✅ Tableau copié — collez-le dans Excel (Ctrl+V)');
+        }).catch(function () {
+          showToast('Copie impossible sur ce navigateur');
+        });
+      }
+
+      function showToast(message) {
+        clearTimeout(toastTimer);
+        toast.textContent = message;
+        toast.classList.add('show');
+        toastTimer = setTimeout(function () { toast.classList.remove('show'); }, 2400);
+      }
+
+      sourceText.addEventListener('input', function () {
+        var count = sourceText.value.length;
+        charCount.textContent = count + (count === 1 ? ' caractère' : ' caractères');
+      });
+
+      /* Conversion automatique dès le collage */
+      sourceText.addEventListener('paste', function () {
+        setTimeout(convert, 350);
+      });
+
+      sourceText.addEventListener('keydown', function (event) {
+        if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') convert();
+      });
+
+      convertBtn.addEventListener('click', convert);
+      copyBtn.addEventListener('click', doCopy);
+      copyBtn2.addEventListener('click', doCopy);
+
+      exampleBtn.addEventListener('click', function () {
+        sourceText.value = EXAMPLE;
+        sourceText.dispatchEvent(new Event('input'));
+        convert();
+      });
+
+      clearBtn.addEventListener('click', function () {
+        sourceText.value = '';
+        currentRows = [];
+        tableBody.innerHTML = '';
+        charCount.textContent = '0 caractère';
+        result.classList.remove('visible');
+        successBox.classList.remove('visible');
+        emptyState.style.display = '';
+        copyBtn.disabled = true;
+        warnings.classList.remove('visible');
+        sourceText.focus();
+      });
+    }());
+  </script>
+</body>
+</html>
