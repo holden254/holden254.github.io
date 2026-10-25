@@ -79,50 +79,53 @@ try:
 except FileNotFoundError:
     pass
 seen = set()
-n = 0
+uniq = []
 for ssid, bssid, ch, enc in nets:
     if (ssid, bssid) in seen:
         continue
     seen.add((ssid, bssid))
-    n += 1
+    uniq.append((ssid, bssid, ch, enc))
+for n, (ssid, bssid, ch, enc) in enumerate(uniq, 1):
     print(f"{n}. {ssid} | {bssid} | channel {ch} | {enc}")
 with open('/tmp/wifi-test/nets.txt', 'w') as f:
-    for ssid, bssid, ch, enc in nets:
+    for ssid, bssid, ch, enc in uniq:
         f.write(f"{ssid}\t{bssid}\t{ch}\t{enc}\n")
-if n == 0:
+if not uniq:
     print("(no network found — is the adapter working?)")
 PYEOF
 
 echo ""
-read -p "Your WiFi name (SSID, exactly as shown): " SSID
-TARGET=$(python3 - "$SSID" <<'PYEOF'
+read -p "Choose your WiFi (number): " CHOICE
+TARGET=$(python3 - "$CHOICE" <<'PYEOF'
 import sys
-want = sys.argv[1].strip().lower()
-found = []
+try:
+    n = int(sys.argv[1])
+except ValueError:
+    print("NOTFOUND"); sys.exit()
+lines = []
 try:
     with open('/tmp/wifi-test/nets.txt') as f:
         for line in f:
             parts = line.rstrip('\n').split('\t')
-            if len(parts) < 4:
-                continue
-            ssid, bssid, ch, enc = parts
-            if ssid.strip().lower() == want:
-                found.append((ssid, bssid, ch))
+            if len(parts) >= 4:
+                lines.append(parts)
 except FileNotFoundError:
     pass
-if not found:
-    print("NOTFOUND")
+if 1 <= n <= len(lines):
+    ssid, bssid, ch, enc = lines[n-1]
+    print(f"{bssid}\t{ch}\t{ssid}")
 else:
-    print(found[0][1] + " " + found[0][2])
+    print("NOTFOUND")
 PYEOF
 )
 if [ "$TARGET" = "NOTFOUND" ] || [ -z "$TARGET" ]; then
-  echo "ERROR: SSID '$SSID' not found in the scan. Check the name and re-run."
+  echo "ERROR: bad choice. Re-run and pick a number from the list."
   airmon-ng stop "$MON" >/dev/null 2>&1
   exit 1
 fi
-BSSID=$(echo "$TARGET" | awk '{print $1}')
-CHAN=$(echo "$TARGET" | awk '{print $2}')
+BSSID=$(echo "$TARGET" | cut -f1)
+CHAN=$(echo "$TARGET" | cut -f2)
+SSID=$(echo "$TARGET" | cut -f3-)
 echo "Target: $SSID | BSSID $BSSID | channel $CHAN"
 
 echo ""
